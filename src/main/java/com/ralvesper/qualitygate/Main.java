@@ -14,7 +14,8 @@ import picocli.CommandLine.Command;
                 GitCommand.class,
                 WorkItemCommand.class,
                 ContextCommand.class,
-                AiReviewCommand.class
+                AiReviewCommand.class,
+                GitLabMrCommand.class
         }
 )
 public class Main implements Runnable {
