@@ -4,7 +4,7 @@ CLI para avaliar a qualidade de projetos Java com gates determinísticos e, em e
 
 ## Objetivo
 
-Executar um conjunto de verificações sobre um projeto Java e retornar um resultado simples para uso local e em CI/CD:
+Executar verificações sobre um projeto Java e retornar um resultado simples para uso local e em CI/CD:
 
 ```text
 PASS  -> exit code 0
@@ -20,60 +20,68 @@ Falhas de qualidade (`FAIL`) e erros de infraestrutura/configuração (`ERROR`) 
 - [x] Estrutura inicial da CLI
 - [x] Detectar projeto Maven
 - [x] Executar `mvn verify`
-- [x] Capturar stdout/stderr e exit code
-- [x] Gerar resultado estruturado
-- [x] Retornar exit code 0/1
+- [x] Resultado estruturado
+- [x] Exit code 0/1
 - [x] Testes unitários
-- [x] Fat JAR via `maven-shade-plugin`
-- [x] Makefile com build/test/clean/install/run
+- [x] Fat JAR
+- [x] Makefile
 
 ### v0.1.1 — Core stabilization
 
 - [x] `--project` opcional, usando o diretório atual por padrão
-- [x] `QualityGateEngine` para orquestrar checks
-- [x] `ProcessRunner` reutilizável
-- [x] Timeout para processos externos
-- [x] Status `PASS`, `WARNING`, `FAIL`, `ERROR` e `SKIPPED`
-- [x] Saída desacoplada em `TextReportWriter` e `JsonReportWriter`
-- [x] Duração de cada check no resultado
-- [x] Configuração por `.quality-gate.yml`
-- [x] Argumentos Maven repetíveis com `--mvn-arg`
-- [x] Maven Wrapper executado sem alterar permissões do projeto
-- [x] Testes E2E com projeto fixture
-- [x] GitHub Actions para build, testes e smoke test da CLI
+- [x] `QualityGateEngine`
+- [x] `ProcessRunner` com timeout
+- [x] Status `PASS`, `WARNING`, `FAIL`, `ERROR`, `SKIPPED`
+- [x] `TextReportWriter` e `JsonReportWriter`
+- [x] `.quality-gate.yml`
+- [x] Maven Wrapper sem alterar permissões do projeto
+- [x] Testes E2E
+- [x] GitHub Actions
 - [x] `--version`
 
-### v0.2 — Coverage & Architecture
+### Architecture Context
+
+- [x] `architecture detect`
+- [x] Detecção de documentação arquitetural explícita
+- [x] Inferência não bloqueante por evidências estruturais
+- [x] Identificação automática do nome do projeto
+- [x] `architecture init`
+- [x] Geração de `ARCHITECTURE.md` em modo `INFERRED`
+- [x] Proteção contra sobrescrita sem `--force`
+
+Os modelos e heurísticas arquiteturais ficam no repositório `ai-skills`. O quality gate não impõe uma arquitetura universal.
+
+### Git Awareness
+
+- [x] Detectar branch atual
+- [x] Detectar branch/base de comparação
+- [x] Gerar diff a partir da merge-base
+- [x] Identificar arquivos alterados
+- [x] Considerar alterações ainda não commitadas
+
+### Work Item Context
+
+- [x] Modelo neutro `WorkItem`
+- [x] Provider configurável
+- [x] Provider GitHub Issues via `gh`
+- [x] Repositório de issues configurável
+- [x] Detecção do ID pela branch
+- [x] Patterns configuráveis
+- [x] Extração de contexto, objetivo, critérios de aceite e cenários de teste
+- [x] `work-item --format text|json`
+- [x] Work item opcional ou obrigatório
+
+### Próximas etapas
 
 - [ ] JaCoCo
 - [ ] Threshold de cobertura
 - [ ] Cobertura do código alterado
-- [ ] ArchUnit
-- [ ] Regras arquiteturais configuráveis
-
-### v0.3 — Git Awareness
-
-- [ ] Detectar branch base
-- [ ] Gerar `git diff`
-- [ ] Identificar arquivos e linhas alteradas
-
-### v0.4 — AI Reviewer
-
-- [ ] Revisar apenas o diff e contexto relevante
-- [ ] Correctness
-- [ ] Security
-- [ ] Architecture
-- [ ] Tests
-- [ ] Scope adherence
-- [ ] Overengineering
-- [ ] Structured output com severity e confidence
-
-### v0.5 — CI/CD integrations
-
+- [ ] AI Reviewer
+- [ ] Comparação requirement -> diff
+- [ ] Scope adherence / overengineering
+- [ ] Architecture review usando `ARCHITECTURE.md`
 - [ ] GitHub PR comments
-- [ ] GitLab CI
 - [ ] GitLab MR comments
-- [ ] Quality Gate PASS/BLOCK publicado no PR/MR
 
 ## Stack
 
@@ -83,6 +91,8 @@ Falhas de qualidade (`FAIL`) e erros de infraestrutura/configuração (`ERROR`) 
 - Jackson
 - Jackson YAML
 - JUnit 5
+- Git CLI
+- GitHub CLI (`gh`) para GitHub Issues
 
 Spring Boot não é necessário: o projeto é uma CLI.
 
@@ -94,86 +104,204 @@ cd java-ai-quality-gate
 make install
 ```
 
-Isso copia:
+Isso instala:
 
-- Fat JAR: `~/.local/bin/java-ai-quality-gate.jar`
-- Wrapper: `~/.local/bin/java-ai-quality-gate`
+- `~/.local/bin/java-ai-quality-gate.jar`
+- `~/.local/bin/java-ai-quality-gate`
 
-Adicione ao `PATH` se necessário:
+## Uso básico
 
-```bash
-echo 'export PATH="$PATH:$HOME/.local/bin"' >> ~/.bashrc
-source ~/.bashrc
-```
-
-## Uso
-
-### Dentro do projeto
-
-`--project` é opcional. Se não for informado, o diretório atual é analisado:
+Dentro do projeto:
 
 ```bash
 cd ~/dev/customer-service
 java-ai-quality-gate review
 ```
 
-### Fora do projeto
+Fora do projeto:
 
 ```bash
 java-ai-quality-gate review --project ~/dev/customer-service
 ```
 
-### Saída JSON
+Saída JSON:
 
 ```bash
-java-ai-quality-gate review \
-  --project ~/dev/customer-service \
-  --format json
+java-ai-quality-gate review --format json
 ```
 
-Os logs do Maven são enviados para `stderr` quando `--format json` é usado, mantendo `stdout` com JSON válido para consumo por pipelines.
+## Architecture Context
 
-Exemplo:
-
-```json
-{
-  "project" : "/home/user/dev/customer-service",
-  "status" : "PASS",
-  "checks" : [ {
-    "gate" : "maven-verify",
-    "status" : "PASS",
-    "message" : "mvn verify executado com sucesso",
-    "durationMs" : 18420
-  } ]
-}
-```
-
-### Timeout
-
-O padrão é 600 segundos:
+Detectar o contexto arquitetural:
 
 ```bash
-java-ai-quality-gate review --timeout-seconds 900
+java-ai-quality-gate architecture detect
 ```
 
-### Argumentos adicionais para Maven
-
-Prefira argumentos repetíveis para não depender de parsing de shell:
+Gerar uma proposta inicial de contrato:
 
 ```bash
-java-ai-quality-gate review \
-  --mvn-arg=-B \
-  --mvn-arg=-Puat \
-  --mvn-arg=-DskipITs=false
+java-ai-quality-gate architecture init
 ```
 
-O antigo `--mvn-args` continua disponível apenas por compatibilidade.
+O arquivo gerado é:
 
-## Configuração do projeto
+```text
+ARCHITECTURE.md
+```
 
-O gate procura por `.quality-gate.yml` na raiz do projeto analisado.
+Quando a arquitetura for inferida apenas do código, o documento é marcado como `INFERRED`. Inferência arquitetural não deve virar regra bloqueante automaticamente.
 
-Exemplo:
+Para substituir um contrato já existente explicitamente:
+
+```bash
+java-ai-quality-gate architecture init --force
+```
+
+## Git Awareness
+
+O comando `git` expõe o contexto da mudança atual:
+
+```bash
+java-ai-quality-gate git
+```
+
+Esse contexto será usado pelos próximos gates para analisar apenas as mudanças relevantes.
+
+## Work Item Context
+
+O quality gate pode carregar requisitos de um repositório GitHub Issues configurável.
+
+Exemplo usando `ralvesper/pluxee-issues`:
+
+```yaml
+workItem:
+  enabled: true
+  required: false
+  provider: github
+
+  github:
+    repository: ralvesper/pluxee-issues
+
+  detection:
+    branchPatterns:
+      - "(FS-\\d+)"
+      - "(PLUX-\\d+)"
+      - "(ENH-\\d+)"
+      - "(GSI-\\d+)"
+```
+
+O nome `pluxee-issues` não é hardcoded. Outro projeto pode usar:
+
+```yaml
+workItem:
+  enabled: true
+  provider: github
+  github:
+    repository: minhaempresa/dev-issues
+```
+
+### Resolução automática pela branch
+
+Com uma branch como:
+
+```text
+feature/FS-687-corrigir-boletos
+```
+
+o gate detecta:
+
+```text
+FS-687
+```
+
+e procura uma issue cujo título contenha o token:
+
+```text
+[FS-687]
+```
+
+Também suporta títulos de sub-issues, por exemplo:
+
+```text
+[FS-687][GSI-0001] Ajustar regra de apresentação
+```
+
+### Consultar o work item
+
+```bash
+java-ai-quality-gate work-item
+```
+
+Ou informar o ID explicitamente:
+
+```bash
+java-ai-quality-gate work-item --id FS-687
+```
+
+JSON:
+
+```bash
+java-ai-quality-gate work-item --id FS-687 --format json
+```
+
+O contexto normalizado contém:
+
+```text
+id
+title
+context
+objective
+acceptanceCriteria
+testScenarios
+source
+url
+```
+
+O parser reconhece seções Markdown como:
+
+```text
+## Contexto
+## Objetivo
+## Critérios de aceite
+## Cenários de teste
+```
+
+### Autenticação GitHub
+
+O provider GitHub usa o GitHub CLI:
+
+```bash
+gh auth status
+```
+
+Se necessário:
+
+```bash
+gh auth login
+```
+
+Isso permite consultar também repositórios privados de issues sem colocar tokens no `.quality-gate.yml`.
+
+### Work item obrigatório
+
+Por padrão, a ausência de work item não bloqueia:
+
+```yaml
+workItem:
+  required: false
+```
+
+Projetos que exigem rastreabilidade podem usar:
+
+```yaml
+workItem:
+  required: true
+```
+
+Nesse caso, `work-item` retorna exit code `1` quando nenhum item é localizado.
+
+## Configuração completa de exemplo
 
 ```yaml
 maven:
@@ -181,15 +309,28 @@ maven:
   args:
     - -B
     - -Puat
+
+workItem:
+  enabled: true
+  required: false
+  provider: github
+
+  github:
+    repository: ralvesper/pluxee-issues
+
+  detection:
+    branchPatterns:
+      - "(FS-\\d+)"
+      - "(PLUX-\\d+)"
+      - "(ENH-\\d+)"
+      - "(GSI-\\d+)"
 ```
 
-Precedência:
+Precedência geral:
 
 ```text
 CLI > .quality-gate.yml > defaults
 ```
-
-A ferramenta não altera o projeto analisado. Se existir `mvnw` sem permissão de execução em Unix, ele é executado via `sh ./mvnw` em vez de aplicar `chmod`.
 
 ## Status dos checks
 
@@ -201,40 +342,24 @@ ERROR    falha de ferramenta/configuração/infraestrutura; bloqueia
 SKIPPED  check não aplicável ou não configurado
 ```
 
-## Arquitetura atual
+## Contexto que será entregue ao AI Reviewer
+
+A direção do projeto é consolidar:
 
 ```text
-ReviewCommand
-     |
-     v
-QualityGateEngine
-     |
-     +-- QualityCheck
-            |
-            +-- MavenBuildCheck
-                    |
-                    v
-               ProcessRunner
-
-QualityGateReport
-     |
-     +-- TextReportWriter
-     +-- JsonReportWriter
+Git Diff
++
+Work Item / Requirements
++
+ARCHITECTURE.md
++
+Código relevante
+        |
+        v
+AI Reviewer
 ```
 
-Novos gates devem implementar `QualityCheck` e serem registrados no `QualityGateEngine`.
-
-## Makefile
-
-```bash
-make help
-make build
-make test
-make clean
-make install
-make run PROJECT=/caminho/do/projeto
-make run-installed PROJECT=/caminho/do/projeto
-```
+O reviewer poderá avaliar não apenas se o código está correto, mas também se a mudança atende ao requisito, respeita a arquitetura do projeto e não introduz alterações fora do escopo.
 
 ## CI do projeto
 
@@ -244,25 +369,4 @@ O próprio `java-ai-quality-gate` possui GitHub Actions em:
 .github/workflows/ci.yml
 ```
 
-O workflow executa:
-
-```bash
-mvn -B verify
-java -jar target/java-ai-quality-gate-0.1.1-SNAPSHOT.jar --version
-```
-
-## Próximo passo
-
-A v0.2 adicionará os primeiros gates de qualidade além do build:
-
-```text
-JaCoCo
-+
-Coverage threshold
-+
-ArchUnit
-+
-Architecture rules
-```
-
-O objetivo é manter as validações determinísticas como base. A IA será adicionada depois como mais um `QualityCheck`, sem substituir build, testes, cobertura, análise estática ou regras arquiteturais executáveis.
+O workflow executa build, testes e smoke test da CLI.
