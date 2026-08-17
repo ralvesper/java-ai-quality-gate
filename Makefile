@@ -1,7 +1,7 @@
 .PHONY: build test clean install run help
 
 JAR := target/java-ai-quality-gate-0.1.0-SNAPSHOT.jar
-INSTALL_DIR := /home/rodrigo/dev/tools/java-ai-quality-gate
+INSTALL_DIR := $(HOME)/.local/bin
 INSTALL_JAR := $(INSTALL_DIR)/java-ai-quality-gate.jar
 
 build:
@@ -17,6 +17,7 @@ install: build
 	mkdir -p $(INSTALL_DIR)
 	cp $(JAR) $(INSTALL_JAR)
 	@echo "Installed to $(INSTALL_JAR)"
+	@echo "Add to PATH: export PATH=\"\$$PATH:$(INSTALL_DIR)\""
 
 run: build
 	java -jar $(JAR) review --project $(PROJECT)

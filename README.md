@@ -69,13 +69,20 @@ Spring Boot não é necessário neste primeiro momento: o projeto é uma CLI.
 ## Instalação
 
 ```bash
-# Clonar e instalar o JAR em diretório padrão
+# Clonar e instalar o JAR em ~/.local/bin (padrão Unix)
 git clone https://github.com/ralvesper/java-ai-quality-gate.git
 cd java-ai-quality-gate
 make install
 ```
 
-Isso copia o fat JAR para `/home/rodrigo/dev/tools/java-ai-quality-gate/java-ai-quality-gate.jar` (sem versão no nome).
+Isso copia o fat JAR para `~/.local/bin/java-ai-quality-gate.jar` (sem versão no nome).
+
+Adicione ao PATH se ainda não estiver:
+
+```bash
+echo 'export PATH="$PATH:$HOME/.local/bin"' >> ~/.bashrc
+source ~/.bashrc
+```
 
 ## Uso
 
@@ -92,16 +99,12 @@ make run-installed PROJECT=/caminho/do/projeto
 ### Via JAR instalado (qualquer diretório)
 
 ```bash
-java -jar /home/rodrigo/dev/tools/java-ai-quality-gate/java-ai-quality-gate.jar review --project /caminho/do/projeto
+java -jar ~/.local/bin/java-ai-quality-gate.jar review --project /caminho/do/projeto
 ```
 
-### Adicionar ao PATH (opcional)
+### Se ~/.local/bin estiver no PATH
 
 ```bash
-echo 'export PATH="$PATH:/home/rodrigo/dev/tools/java-ai-quality-gate"' >> ~/.bashrc
-source ~/.bashrc
-
-# Depois usar direto
 java -jar java-ai-quality-gate.jar review --project /caminho/do/projeto
 ```
 
