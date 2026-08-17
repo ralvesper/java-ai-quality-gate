@@ -58,6 +58,7 @@ Os modelos e heurísticas arquiteturais ficam no repositório `ai-skills`. O qua
 - [x] Gerar diff a partir da merge-base
 - [x] Identificar arquivos alterados
 - [x] Considerar alterações ainda não commitadas
+- [x] Considerar arquivos novos ainda não rastreados (`untracked`)
 
 ### Work Item Context
 
@@ -98,12 +99,21 @@ HIGH     + HIGH confidence -> BLOCK
 outros findings            -> não bloqueiam
 ```
 
+### GitLab Merge Request Context
+
+- [x] Aceitar URL completa de Merge Request
+- [x] Extrair host, projeto e IID do MR
+- [x] Buscar metadata via `glab mr view`
+- [x] Buscar patch remoto via `glab mr diff`
+- [x] Não exigir checkout da branch do MR apenas para obter o diff
+- [x] Comando `gitlab-mr`
+- [x] Integração com a skill `java-ai-quality-review`
+
 ### Próximas etapas
 
 - [ ] JaCoCo
 - [ ] Threshold de cobertura
 - [ ] Cobertura do código alterado
-- [ ] Prompt/skill padrão do AI Reviewer
 - [ ] Provider OpenAI/OpenRouter opcional
 - [ ] Comparação requirement -> diff refinada
 - [ ] GitHub PR comments
@@ -119,6 +129,7 @@ outros findings            -> não bloqueiam
 - JUnit 5
 - Git CLI
 - GitHub CLI (`gh`) para GitHub Issues
+- GitLab CLI (`glab`) para Merge Requests
 
 Spring Boot não é necessário: o projeto é uma CLI.
 
@@ -257,6 +268,48 @@ Architecture Context
 +
 ARCHITECTURE.md
 ```
+
+## GitLab Merge Request por URL
+
+O quality gate pode carregar metadata e diff de um Merge Request remoto a partir do link completo do GitLab.
+
+Pré-requisito:
+
+```bash
+glab auth status
+```
+
+Exemplo:
+
+```bash
+java-ai-quality-gate gitlab-mr \
+  'https://git.pluxee.com.br/core-backoffice/pedefacil1/ebs/-/merge_requests/734'
+```
+
+O comando usa o projeto e o IID extraídos da própria URL e consulta o GitLab via `glab`. Não é necessário trocar a branch local apenas para obter o patch do MR.
+
+O contexto retornado contém, entre outros dados:
+
+```text
+provider
+title
+description
+sourceBranch
+targetBranch
+state
+author
+url
+projectPath
+patch
+```
+
+Para revisão assistida pelo Codex, a skill correspondente pode ser chamada com a mesma URL:
+
+```text
+$java-ai-quality-review https://git.pluxee.com.br/core-backoffice/pedefacil1/ebs/-/merge_requests/734
+```
+
+Nesse modo, o patch remoto do MR é a fonte de verdade sobre as alterações. Quando existir um clone local correspondente, a revisão pode complementar o contexto com `ARCHITECTURE.md`, Work Item e arquivos relacionados.
 
 ## AI Reviewer
 
