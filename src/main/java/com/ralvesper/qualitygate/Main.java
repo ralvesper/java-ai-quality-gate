@@ -6,6 +6,7 @@ import picocli.CommandLine.Command;
 @Command(
         name = "java-ai-quality-gate",
         mixinStandardHelpOptions = true,
+        versionProvider = BuildVersionProvider.class,
         description = "Quality gate determinístico e assistido por IA para projetos Java.",
         subcommands = ReviewCommand.class
 )
