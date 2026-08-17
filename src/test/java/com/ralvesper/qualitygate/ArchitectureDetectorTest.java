@@ -50,6 +50,30 @@ class ArchitectureDetectorTest {
     }
 
     @Test
+    void usesModuleArtifactIdInsteadOfParentArtifactId() throws Exception {
+        Path javaRoot = tempDir.resolve("src/main/java/com/example");
+        Files.createDirectories(javaRoot.resolve("controller"));
+        Files.createDirectories(javaRoot.resolve("service"));
+        Files.createDirectories(javaRoot.resolve("repository"));
+        Files.writeString(tempDir.resolve("pom.xml"), """
+                <project xmlns="http://maven.apache.org/POM/4.0.0">
+                  <modelVersion>4.0.0</modelVersion>
+                  <parent>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-parent</artifactId>
+                    <version>3.5.15</version>
+                  </parent>
+                  <artifactId>order-pedefacil-service</artifactId>
+                  <version>1.0.0</version>
+                </project>
+                """);
+
+        ArchitectureContext context = new ArchitectureDetector().detect(tempDir);
+
+        assertEquals("order-pedefacil-service", context.projectName());
+    }
+
+    @Test
     void returnsUnknownWhenNoArchitectureSignalsExist() {
         ArchitectureContext context = new ArchitectureDetector().detect(tempDir);
 

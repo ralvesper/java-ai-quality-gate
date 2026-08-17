@@ -48,14 +48,15 @@ public class ArchitectureCommand implements Runnable {
         @Override
         public Integer call() throws Exception {
             Path root = project.toAbsolutePath().normalize();
-            Path output = root.resolve("ARCHITECTURE.md");
+            Path output = root.resolve(".agents/ARCHITECTURE.md");
 
             if (Files.exists(output) && !force) {
                 System.err.println("ARCHITECTURE.md já existe. Use --force somente se quiser substituir o arquivo.");
                 return 1;
             }
 
-            ArchitectureContext context = new ArchitectureDetector().detect(root);
+            ArchitectureContext context = new ArchitectureDetector().detect(root, output);
+            Files.createDirectories(output.getParent());
             Files.writeString(output, render(context));
 
             System.out.println("ARCHITECTURE.md criado em " + output);

@@ -1,6 +1,7 @@
 package com.ralvesper.qualitygate;
 
 import org.w3c.dom.Document;
+import org.w3c.dom.Node;
 
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.nio.file.Files;
@@ -12,6 +13,7 @@ import java.util.Locale;
 public class ArchitectureDetector {
 
     private static final List<String> DOCUMENTATION_CANDIDATES = List.of(
+            ".agents/ARCHITECTURE.md",
             "ARCHITECTURE.md",
             "docs/architecture.md",
             "DESIGN.md",
@@ -19,13 +21,17 @@ public class ArchitectureDetector {
     );
 
     public ArchitectureContext detect(Path projectPath) {
+        return detect(projectPath, null);
+    }
+
+    public ArchitectureContext detect(Path projectPath, Path excludeDocumentation) {
         Path root = projectPath.toAbsolutePath().normalize();
         String projectName = detectProjectName(root);
         List<String> evidence = new ArrayList<>();
 
         for (String candidate : DOCUMENTATION_CANDIDATES) {
             Path documentation = root.resolve(candidate);
-            if (Files.isRegularFile(documentation)) {
+            if (Files.isRegularFile(documentation) && !documentation.equals(excludeDocumentation)) {
                 evidence.add("Architecture documentation found: " + candidate);
                 return new ArchitectureContext(
                         projectName,
@@ -127,11 +133,14 @@ public class ArchitectureDetector {
                 factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
                 factory.setExpandEntityReferences(false);
                 Document document = factory.newDocumentBuilder().parse(pom.toFile());
-                var artifactIds = document.getDocumentElement().getElementsByTagName("artifactId");
-                if (artifactIds.getLength() > 0) {
-                    String artifactId = artifactIds.item(0).getTextContent().trim();
-                    if (!artifactId.isBlank()) {
-                        return artifactId;
+                var children = document.getDocumentElement().getChildNodes();
+                for (int i = 0; i < children.getLength(); i++) {
+                    var child = children.item(i);
+                    if (child.getNodeType() == Node.ELEMENT_NODE && "artifactId".equals(child.getNodeName())) {
+                        String artifactId = child.getTextContent().trim();
+                        if (!artifactId.isBlank()) {
+                            return artifactId;
+                        }
                     }
                 }
             } catch (Exception ignored) {
