@@ -11,6 +11,10 @@ public record QualityGateConfig(
         workItem = workItem == null ? WorkItemConfig.defaults() : workItem;
     }
 
+    public QualityGateConfig(MavenConfig maven) {
+        this(maven, WorkItemConfig.defaults());
+    }
+
     public static QualityGateConfig defaults() {
         return new QualityGateConfig(MavenConfig.defaults(), WorkItemConfig.defaults());
     }
