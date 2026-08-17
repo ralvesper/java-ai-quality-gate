@@ -4,19 +4,25 @@ import java.util.List;
 
 public record QualityGateConfig(
         MavenConfig maven,
-        WorkItemConfig workItem
+        WorkItemConfig workItem,
+        AiReviewConfig aiReview
 ) {
     public QualityGateConfig {
         maven = maven == null ? MavenConfig.defaults() : maven;
         workItem = workItem == null ? WorkItemConfig.defaults() : workItem;
+        aiReview = aiReview == null ? AiReviewConfig.defaults() : aiReview;
     }
 
     public QualityGateConfig(MavenConfig maven) {
-        this(maven, WorkItemConfig.defaults());
+        this(maven, WorkItemConfig.defaults(), AiReviewConfig.defaults());
+    }
+
+    public QualityGateConfig(MavenConfig maven, WorkItemConfig workItem) {
+        this(maven, workItem, AiReviewConfig.defaults());
     }
 
     public static QualityGateConfig defaults() {
-        return new QualityGateConfig(MavenConfig.defaults(), WorkItemConfig.defaults());
+        return new QualityGateConfig(MavenConfig.defaults(), WorkItemConfig.defaults(), AiReviewConfig.defaults());
     }
 
     public record MavenConfig(
@@ -48,6 +54,21 @@ public record QualityGateConfig(
 
         public static WorkItemConfig defaults() {
             return new WorkItemConfig(false, false, "github", new GithubConfig(null), DetectionConfig.defaults());
+        }
+    }
+
+    public record AiReviewConfig(
+            boolean enabled,
+            String provider,
+            List<String> command
+    ) {
+        public AiReviewConfig {
+            provider = provider == null || provider.isBlank() ? "command" : provider;
+            command = command == null ? List.of() : List.copyOf(command);
+        }
+
+        public static AiReviewConfig defaults() {
+            return new AiReviewConfig(false, "command", List.of());
         }
     }
 
