@@ -8,7 +8,10 @@ import picocli.CommandLine.Command;
         mixinStandardHelpOptions = true,
         versionProvider = BuildVersionProvider.class,
         description = "Quality gate determinístico e assistido por IA para projetos Java.",
-        subcommands = ReviewCommand.class
+        subcommands = {
+                ReviewCommand.class,
+                ArchitectureCommand.class
+        }
 )
 public class Main implements Runnable {
 
