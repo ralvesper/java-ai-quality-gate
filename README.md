@@ -11,7 +11,9 @@ PASS  -> exit code 0
 BLOCK -> exit code 1
 ```
 
-## Roadmap
+Falhas de qualidade (`FAIL`) e erros de infraestrutura/configuração (`ERROR`) bloqueiam o gate. `WARNING` e `SKIPPED` não bloqueiam.
+
+## Estado atual
 
 ### v0.1 — Deterministic Maven Gate
 
@@ -21,14 +23,31 @@ BLOCK -> exit code 1
 - [x] Capturar stdout/stderr e exit code
 - [x] Gerar resultado estruturado
 - [x] Retornar exit code 0/1
-- [x] Unit tests (5 passing)
-- [x] Fat JAR via maven-shade-plugin
-- [x] Makefile com targets build/test/clean/install/run
+- [x] Testes unitários
+- [x] Fat JAR via `maven-shade-plugin`
+- [x] Makefile com build/test/clean/install/run
+
+### v0.1.1 — Core stabilization
+
+- [x] `--project` opcional, usando o diretório atual por padrão
+- [x] `QualityGateEngine` para orquestrar checks
+- [x] `ProcessRunner` reutilizável
+- [x] Timeout para processos externos
+- [x] Status `PASS`, `WARNING`, `FAIL`, `ERROR` e `SKIPPED`
+- [x] Saída desacoplada em `TextReportWriter` e `JsonReportWriter`
+- [x] Duração de cada check no resultado
+- [x] Configuração por `.quality-gate.yml`
+- [x] Argumentos Maven repetíveis com `--mvn-arg`
+- [x] Maven Wrapper executado sem alterar permissões do projeto
+- [x] Testes E2E com projeto fixture
+- [x] GitHub Actions para build, testes e smoke test da CLI
+- [x] `--version`
 
 ### v0.2 — Coverage & Architecture
 
 - [ ] JaCoCo
 - [ ] Threshold de cobertura
+- [ ] Cobertura do código alterado
 - [ ] ArchUnit
 - [ ] Regras arquiteturais configuráveis
 
@@ -49,12 +68,12 @@ BLOCK -> exit code 1
 - [ ] Overengineering
 - [ ] Structured output com severity e confidence
 
-### v0.5 — CI/CD
+### v0.5 — CI/CD integrations
 
-- [ ] GitHub Actions
+- [ ] GitHub PR comments
 - [ ] GitLab CI
-- [ ] Comentários em PR/MR
-- [ ] Quality Gate PASS/BLOCK
+- [ ] GitLab MR comments
+- [ ] Quality Gate PASS/BLOCK publicado no PR/MR
 
 ## Stack
 
@@ -62,24 +81,25 @@ BLOCK -> exit code 1
 - Maven
 - Picocli
 - Jackson
+- Jackson YAML
 - JUnit 5
 
-Spring Boot não é necessário neste primeiro momento: o projeto é uma CLI.
+Spring Boot não é necessário: o projeto é uma CLI.
 
 ## Instalação
 
 ```bash
-# Clonar e instalar (copia JAR + cria wrapper executável em ~/.local/bin)
 git clone https://github.com/ralvesper/java-ai-quality-gate.git
 cd java-ai-quality-gate
 make install
 ```
 
 Isso copia:
-- Fat JAR: `~/.local/bin/java-ai-quality-gate.jar`
-- Wrapper: `~/.local/bin/java-ai-quality-gate` (executável)
 
-Adicione ao PATH se ainda não estiver:
+- Fat JAR: `~/.local/bin/java-ai-quality-gate.jar`
+- Wrapper: `~/.local/bin/java-ai-quality-gate`
+
+Adicione ao `PATH` se necessário:
 
 ```bash
 echo 'export PATH="$PATH:$HOME/.local/bin"' >> ~/.bashrc
@@ -88,64 +108,161 @@ source ~/.bashrc
 
 ## Uso
 
-### Via Makefile (projeto local)
+### Dentro do projeto
+
+`--project` é opcional. Se não for informado, o diretório atual é analisado:
 
 ```bash
-# Build + run
-make run PROJECT=/caminho/do/projeto
+cd ~/dev/customer-service
+java-ai-quality-gate review
+```
 
-# Apenas rodar (assume JAR já buildado)
+### Fora do projeto
+
+```bash
+java-ai-quality-gate review --project ~/dev/customer-service
+```
+
+### Saída JSON
+
+```bash
+java-ai-quality-gate review \
+  --project ~/dev/customer-service \
+  --format json
+```
+
+Os logs do Maven são enviados para `stderr` quando `--format json` é usado, mantendo `stdout` com JSON válido para consumo por pipelines.
+
+Exemplo:
+
+```json
+{
+  "project" : "/home/user/dev/customer-service",
+  "status" : "PASS",
+  "checks" : [ {
+    "gate" : "maven-verify",
+    "status" : "PASS",
+    "message" : "mvn verify executado com sucesso",
+    "durationMs" : 18420
+  } ]
+}
+```
+
+### Timeout
+
+O padrão é 600 segundos:
+
+```bash
+java-ai-quality-gate review --timeout-seconds 900
+```
+
+### Argumentos adicionais para Maven
+
+Prefira argumentos repetíveis para não depender de parsing de shell:
+
+```bash
+java-ai-quality-gate review \
+  --mvn-arg=-B \
+  --mvn-arg=-Puat \
+  --mvn-arg=-DskipITs=false
+```
+
+O antigo `--mvn-args` continua disponível apenas por compatibilidade.
+
+## Configuração do projeto
+
+O gate procura por `.quality-gate.yml` na raiz do projeto analisado.
+
+Exemplo:
+
+```yaml
+maven:
+  timeoutSeconds: 600
+  args:
+    - -B
+    - -Puat
+```
+
+Precedência:
+
+```text
+CLI > .quality-gate.yml > defaults
+```
+
+A ferramenta não altera o projeto analisado. Se existir `mvnw` sem permissão de execução em Unix, ele é executado via `sh ./mvnw` em vez de aplicar `chmod`.
+
+## Status dos checks
+
+```text
+PASS     verificação executada com sucesso
+WARNING  atenção necessária, mas não bloqueia
+FAIL     problema de qualidade; bloqueia
+ERROR    falha de ferramenta/configuração/infraestrutura; bloqueia
+SKIPPED  check não aplicável ou não configurado
+```
+
+## Arquitetura atual
+
+```text
+ReviewCommand
+     |
+     v
+QualityGateEngine
+     |
+     +-- QualityCheck
+            |
+            +-- MavenBuildCheck
+                    |
+                    v
+               ProcessRunner
+
+QualityGateReport
+     |
+     +-- TextReportWriter
+     +-- JsonReportWriter
+```
+
+Novos gates devem implementar `QualityCheck` e serem registrados no `QualityGateEngine`.
+
+## Makefile
+
+```bash
+make help
+make build
+make test
+make clean
+make install
+make run PROJECT=/caminho/do/projeto
 make run-installed PROJECT=/caminho/do/projeto
 ```
 
-### Via wrapper instalado (qualquer diretório, **recomendado**)
+## CI do projeto
 
-```bash
-java-ai-quality-gate review --project /caminho/do/projeto
-```
-
-### Via JAR instalado (qualquer diretório)
-
-```bash
-java -jar ~/.local/bin/java-ai-quality-gate.jar review --project /caminho/do/projeto
-```
-
-Saída esperada:
+O próprio `java-ai-quality-gate` possui GitHub Actions em:
 
 ```text
-Java AI Quality Gate
---------------------
-Project: /caminho/do/projeto
-Maven verify: PASS
-Message: mvn verify executado com sucesso
-
-QUALITY GATE: PASS
+.github/workflows/ci.yml
 ```
 
-Ou em caso de falha:
-
-```text
-Java AI Quality Gate
---------------------
-Project: /caminho/do/projeto
-Maven verify: FAIL
-Message: mvn verify falhou com código 1
-
-QUALITY GATE: BLOCK
-```
-
-## Makefile Targets
+O workflow executa:
 
 ```bash
-make help           # Mostra ajuda
-make build          # Compila e empacota fat JAR (skip tests)
-make test           # Roda testes unitários
-make clean          # Limpa target/
-make install        # Instala JAR + wrapper em ~/.local/bin
-make run PROJECT=.. # Build + executa quality gate
-make run-installed  # Executa quality gate usando JAR instalado
+mvn -B verify
+java -jar target/java-ai-quality-gate-0.1.1-SNAPSHOT.jar --version
 ```
 
-## Princípio
+## Próximo passo
 
-O gate deve combinar validações determinísticas com IA. A IA nunca substitui build, testes, análise estática ou regras arquiteturais executáveis.
+A v0.2 adicionará os primeiros gates de qualidade além do build:
+
+```text
+JaCoCo
++
+Coverage threshold
++
+ArchUnit
++
+Architecture rules
+```
+
+O objetivo é manter as validações determinísticas como base. A IA será adicionada depois como mais um `QualityCheck`, sem substituir build, testes, cobertura, análise estática ou regras arquiteturais executáveis.
