@@ -1,6 +1,6 @@
 # Java AI Quality Gate
 
-CLI para avaliar a qualidade de projetos Java com gates determinísticos e, em etapas posteriores, revisão assistida por IA.
+CLI para avaliar a qualidade de projetos Java com gates determinísticos e revisão assistida por IA.
 
 ## Objetivo
 
@@ -71,15 +71,41 @@ Os modelos e heurísticas arquiteturais ficam no repositório `ai-skills`. O qua
 - [x] `work-item --format text|json`
 - [x] Work item opcional ou obrigatório
 
+### Unified Review Context
+
+- [x] `ReviewContext`
+- [x] Git diff + Work Item + Architecture Context
+- [x] Conteúdo de `ARCHITECTURE.md`
+- [x] `context --format text|json`
+
+### AI Reviewer v1
+
+- [x] Interface `AiReviewProvider`
+- [x] Findings estruturados
+- [x] Categorias de correctness, security, architecture, tests, scope, overengineering e maintainability
+- [x] Severity e confidence explícitos
+- [x] Provider `command` desacoplado de fornecedor/modelo
+- [x] Entrada via `ReviewContext` JSON no `stdin`
+- [x] Saída JSON estruturada no `stdout`
+- [x] Política de bloqueio inicial
+- [x] `ai-review --format text|json`
+
+Política inicial:
+
+```text
+CRITICAL + HIGH confidence -> BLOCK
+HIGH     + HIGH confidence -> BLOCK
+outros findings            -> não bloqueiam
+```
+
 ### Próximas etapas
 
 - [ ] JaCoCo
 - [ ] Threshold de cobertura
 - [ ] Cobertura do código alterado
-- [ ] AI Reviewer
-- [ ] Comparação requirement -> diff
-- [ ] Scope adherence / overengineering
-- [ ] Architecture review usando `ARCHITECTURE.md`
+- [ ] Prompt/skill padrão do AI Reviewer
+- [ ] Provider OpenAI/OpenRouter opcional
+- [ ] Comparação requirement -> diff refinada
 - [ ] GitHub PR comments
 - [ ] GitLab MR comments
 
@@ -166,8 +192,6 @@ O comando `git` expõe o contexto da mudança atual:
 java-ai-quality-gate git
 ```
 
-Esse contexto será usado pelos próximos gates para analisar apenas as mudanças relevantes.
-
 ## Work Item Context
 
 O quality gate pode carregar requisitos de um repositório GitHub Issues configurável.
@@ -191,83 +215,13 @@ workItem:
       - "(GSI-\\d+)"
 ```
 
-O nome `pluxee-issues` não é hardcoded. Outro projeto pode usar:
-
-```yaml
-workItem:
-  enabled: true
-  provider: github
-  github:
-    repository: minhaempresa/dev-issues
-```
-
-### Resolução automática pela branch
-
-Com uma branch como:
-
-```text
-feature/FS-687-corrigir-boletos
-```
-
-o gate detecta:
-
-```text
-FS-687
-```
-
-e procura uma issue cujo título contenha o token:
-
-```text
-[FS-687]
-```
-
-Também suporta títulos de sub-issues, por exemplo:
-
-```text
-[FS-687][GSI-0001] Ajustar regra de apresentação
-```
-
-### Consultar o work item
+Consultar:
 
 ```bash
 java-ai-quality-gate work-item
-```
-
-Ou informar o ID explicitamente:
-
-```bash
 java-ai-quality-gate work-item --id FS-687
-```
-
-JSON:
-
-```bash
 java-ai-quality-gate work-item --id FS-687 --format json
 ```
-
-O contexto normalizado contém:
-
-```text
-id
-title
-context
-objective
-acceptanceCriteria
-testScenarios
-source
-url
-```
-
-O parser reconhece seções Markdown como:
-
-```text
-## Contexto
-## Objetivo
-## Critérios de aceite
-## Cenários de teste
-```
-
-### Autenticação GitHub
 
 O provider GitHub usa o GitHub CLI:
 
@@ -275,31 +229,108 @@ O provider GitHub usa o GitHub CLI:
 gh auth status
 ```
 
-Se necessário:
+## Review Context
+
+Inspecionar o contexto completo que será entregue ao reviewer:
 
 ```bash
-gh auth login
+java-ai-quality-gate context
 ```
 
-Isso permite consultar também repositórios privados de issues sem colocar tokens no `.quality-gate.yml`.
+Com base e work item explícitos:
 
-### Work item obrigatório
+```bash
+java-ai-quality-gate context \
+  --base origin/develop \
+  --work-item FS-687 \
+  --format json
+```
 
-Por padrão, a ausência de work item não bloqueia:
+O `ReviewContext` agrega:
+
+```text
+Git Diff
++
+Work Item / Requirements
++
+Architecture Context
++
+ARCHITECTURE.md
+```
+
+## AI Reviewer
+
+O reviewer é opcional e fica desabilitado por padrão.
+
+Configuração:
 
 ```yaml
-workItem:
-  required: false
+aiReview:
+  enabled: true
+  provider: command
+  command:
+    - /caminho/para/meu-ai-reviewer
 ```
 
-Projetos que exigem rastreabilidade podem usar:
+O comando configurado recebe o `ReviewContext` serializado em JSON pelo `stdin` e deve escrever apenas JSON válido no `stdout`.
 
-```yaml
-workItem:
-  required: true
+Executar:
+
+```bash
+java-ai-quality-gate ai-review
 ```
 
-Nesse caso, `work-item` retorna exit code `1` quando nenhum item é localizado.
+Com contexto explícito:
+
+```bash
+java-ai-quality-gate ai-review \
+  --base origin/develop \
+  --work-item FS-687
+```
+
+Saída JSON:
+
+```bash
+java-ai-quality-gate ai-review --format json
+```
+
+### Contrato de saída do provider
+
+Exemplo:
+
+```json
+{
+  "provider": "my-reviewer",
+  "summary": "Mudança possui um problema arquitetural bloqueante.",
+  "findings": [
+    {
+      "category": "ARCHITECTURE",
+      "severity": "HIGH",
+      "confidence": "HIGH",
+      "file": "src/main/java/com/acme/CustomerController.java",
+      "line": 43,
+      "message": "Controller acessa repository diretamente.",
+      "rationale": "ARCHITECTURE.md exige acesso à persistência através da camada application."
+    }
+  ]
+}
+```
+
+Categorias suportadas:
+
+```text
+CORRECTNESS
+SECURITY
+ARCHITECTURE
+TESTS
+SCOPE
+OVERENGINEERING
+MAINTAINABILITY
+```
+
+Se existir pelo menos um finding `HIGH` ou `CRITICAL` com `HIGH` confidence, `ai-review` retorna exit code `1`.
+
+A ferramenta não exige um fornecedor específico. O comando externo pode encapsular OpenAI, OpenRouter, Codex, Claude ou outro modelo, desde que respeite o contrato JSON.
 
 ## Configuração completa de exemplo
 
@@ -314,16 +345,20 @@ workItem:
   enabled: true
   required: false
   provider: github
-
   github:
     repository: ralvesper/pluxee-issues
-
   detection:
     branchPatterns:
       - "(FS-\\d+)"
       - "(PLUX-\\d+)"
       - "(ENH-\\d+)"
       - "(GSI-\\d+)"
+
+aiReview:
+  enabled: true
+  provider: command
+  command:
+    - /caminho/para/meu-ai-reviewer
 ```
 
 Precedência geral:
@@ -341,25 +376,6 @@ FAIL     problema de qualidade; bloqueia
 ERROR    falha de ferramenta/configuração/infraestrutura; bloqueia
 SKIPPED  check não aplicável ou não configurado
 ```
-
-## Contexto que será entregue ao AI Reviewer
-
-A direção do projeto é consolidar:
-
-```text
-Git Diff
-+
-Work Item / Requirements
-+
-ARCHITECTURE.md
-+
-Código relevante
-        |
-        v
-AI Reviewer
-```
-
-O reviewer poderá avaliar não apenas se o código está correto, mas também se a mudança atende ao requisito, respeita a arquitetura do projeto e não introduz alterações fora do escopo.
 
 ## CI do projeto
 
