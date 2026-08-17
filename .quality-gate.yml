@@ -1,0 +1,4 @@
+maven:
+  timeoutSeconds: 600
+  args:
+    - -B
