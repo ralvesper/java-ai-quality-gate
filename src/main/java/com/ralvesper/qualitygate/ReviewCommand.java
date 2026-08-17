@@ -4,6 +4,7 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -17,16 +18,29 @@ public class ReviewCommand implements Callable<Integer> {
 
     @Option(
             names = "--project",
-            required = true,
-            description = "Diretório raiz do projeto Java/Maven."
+            description = "Diretório raiz do projeto Java/Maven. Padrão: diretório atual.",
+            defaultValue = "."
     )
     private Path project;
 
     @Option(
-            names = "--mvn-args",
-            description = "Argumentos adicionais para passar ao comando Maven (ex: '-B -Pprofile')."
+            names = "--mvn-arg",
+            description = "Argumento adicional para Maven. Pode ser repetido."
     )
-    private String mvnArgs;
+    private List<String> mvnArgs = new ArrayList<>();
+
+    @Option(
+            names = "--mvn-args",
+            description = "Compatibilidade: argumentos Maven separados por espaço.",
+            hidden = true
+    )
+    private String legacyMvnArgs;
+
+    @Option(
+            names = "--timeout-seconds",
+            description = "Timeout do Maven em segundos. Sobrescreve .quality-gate.yml."
+    )
+    private Long timeoutSeconds;
 
     @Option(
             names = {"-f", "--format"},
@@ -41,67 +55,48 @@ public class ReviewCommand implements Callable<Integer> {
 
     @Override
     public Integer call() {
-        if (project == null) {
-            System.err.println("Erro: O diretório do projeto (--project) é obrigatório.");
-            return 1;
-        }
-
         ProjectContext context = new ProjectContext(project.toAbsolutePath().normalize());
-        
-        // Se o formato for JSON, redireciona o log do Maven para o stderr para manter o stdout limpo
-        java.io.PrintStream mavenLogStream = (format == OutputFormat.json) ? System.err : System.out;
+        java.io.PrintStream mavenLogStream = format == OutputFormat.json ? System.err : System.out;
 
-        List<GateResult> checkResults = new ArrayList<>();
-
-        // Executar verificação do Maven Verify
-        MavenBuildCheck mavenCheck = new MavenBuildCheck(mvnArgs, mavenLogStream);
-        GateResult mavenResult = mavenCheck.execute(context);
-        checkResults.add(mavenResult);
-
-        // Determinar status consolidado
-        GateStatus consolidatedStatus = GateStatus.PASS;
-        for (GateResult r : checkResults) {
-            if (r.status() == GateStatus.FAIL) {
-                consolidatedStatus = GateStatus.FAIL;
-                break;
-            } else if (r.status() == GateStatus.WARNING && consolidatedStatus != GateStatus.FAIL) {
-                consolidatedStatus = GateStatus.WARNING;
-            }
-        }
-
-        if (format == OutputFormat.json) {
+        QualityGateConfig config;
+        try {
+            config = new QualityGateConfigLoader().load(context.projectPath());
+        } catch (Exception e) {
             QualityGateReport report = new QualityGateReport(
                     context.projectPath().toString(),
-                    consolidatedStatus,
-                    checkResults
+                    GateStatus.ERROR,
+                    List.of(new GateResult("config", GateStatus.ERROR,
+                            "Falha ao ler .quality-gate.yml: " + e.getMessage()))
             );
-            try {
-                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper()
-                        .enable(com.fasterxml.jackson.databind.SerializationFeature.INDENT_OUTPUT);
-                String json = mapper.writeValueAsString(report);
-                System.out.println(json);
-            } catch (Exception e) {
-                System.err.println("Erro ao gerar JSON: " + e.getMessage());
-                return 1;
-            }
-        } else {
-            System.out.println();
-            System.out.println("Java AI Quality Gate");
-            System.out.println("--------------------");
-            System.out.println("Project: " + context.projectPath());
-            for (GateResult r : checkResults) {
-                System.out.println(r.gate() + ": " + r.status());
-                System.out.println("Message: " + r.message());
-            }
-            System.out.println();
-
-            if (consolidatedStatus == GateStatus.FAIL) {
-                System.out.println("QUALITY GATE: BLOCK");
-            } else {
-                System.out.println("QUALITY GATE: PASS");
-            }
+            return writeReport(report);
         }
 
-        return (consolidatedStatus == GateStatus.FAIL) ? 1 : 0;
+        List<String> effectiveArgs = new ArrayList<>(config.maven().args());
+        effectiveArgs.addAll(mvnArgs);
+        if (legacyMvnArgs != null && !legacyMvnArgs.isBlank()) {
+            effectiveArgs.addAll(List.of(legacyMvnArgs.trim().split("\\s+")));
+        }
+
+        long effectiveTimeout = timeoutSeconds != null ? timeoutSeconds : config.maven().timeoutSeconds();
+        MavenBuildCheck mavenCheck = new MavenBuildCheck(
+                effectiveArgs,
+                mavenLogStream,
+                Duration.ofSeconds(effectiveTimeout)
+        );
+
+        QualityGateEngine engine = new QualityGateEngine(List.of(mavenCheck));
+        QualityGateReport report = engine.execute(context);
+        return writeReport(report);
+    }
+
+    private int writeReport(QualityGateReport report) {
+        ReportWriter writer = format == OutputFormat.json ? new JsonReportWriter() : new TextReportWriter();
+        try {
+            writer.write(report, System.out);
+        } catch (Exception e) {
+            System.err.println("Erro ao gerar relatório: " + e.getMessage());
+            return 1;
+        }
+        return report.status().blocksMerge() ? 1 : 0;
     }
 }
