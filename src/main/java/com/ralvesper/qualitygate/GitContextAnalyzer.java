@@ -29,17 +29,56 @@ public class GitContextAnalyzer {
                 : requestedBase.trim();
 
         String mergeBase = run(root, "git", "merge-base", base, "HEAD").trim();
-        String patch = run(root, "git", "diff", "--no-ext-diff", "--unified=0", mergeBase);
+        String trackedPatch = run(root, "git", "diff", "--no-ext-diff", "--unified=0", mergeBase);
         String nameStatus = run(root, "git", "diff", "--no-ext-diff", "--name-status", mergeBase);
 
         Map<String, MutableFile> files = parseNameStatus(nameStatus);
-        parseChangedLines(patch, files);
+        parseChangedLines(trackedPatch, files);
+
+        StringBuilder patch = new StringBuilder(trackedPatch);
+        includeUntrackedFiles(root, files, patch);
 
         List<GitDiffFile> result = files.values().stream()
                 .map(MutableFile::toRecord)
                 .toList();
 
-        return new GitDiffContext(branch, base, mergeBase, result, patch);
+        return new GitDiffContext(branch, base, mergeBase, result, patch.toString());
+    }
+
+    private void includeUntrackedFiles(Path root, Map<String, MutableFile> files, StringBuilder patch)
+            throws IOException, InterruptedException {
+        String output = run(root, "git", "ls-files", "--others", "--exclude-standard");
+        for (String relativePath : output.lines().filter(line -> !line.isBlank()).toList()) {
+            Path file = root.resolve(relativePath).normalize();
+            if (!file.startsWith(root) || !Files.isRegularFile(file)) {
+                continue;
+            }
+
+            List<String> lines;
+            try {
+                lines = Files.readAllLines(file, StandardCharsets.UTF_8);
+            } catch (IOException e) {
+                // Binary/unreadable untracked files are still reported, but without line-level content.
+                files.putIfAbsent(relativePath, new MutableFile(relativePath, "A"));
+                continue;
+            }
+
+            MutableFile mutable = new MutableFile(relativePath, "A");
+            addRange(mutable.addedLines, 1, lines.size());
+            files.put(relativePath, mutable);
+
+            if (!patch.isEmpty() && patch.charAt(patch.length() - 1) != '\n') {
+                patch.append('\n');
+            }
+            patch.append("diff --git a/").append(relativePath).append(" b/").append(relativePath).append('\n')
+                    .append("new file mode 100644\n")
+                    .append("--- /dev/null\n")
+                    .append("+++ b/").append(relativePath).append('\n')
+                    .append("@@ -0,0 +1,").append(lines.size()).append(" @@\n");
+            for (String line : lines) {
+                patch.append('+').append(line).append('\n');
+            }
+        }
     }
 
     private void requireGitRepository(Path root) throws IOException, InterruptedException {
