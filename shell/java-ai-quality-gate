@@ -18,4 +18,50 @@ if [ ! -f "${JAR_PATH}" ]; then
     exit 1
 fi
 
-exec java -jar "${JAR_PATH}" "$@"
+# A CLI requer Java 21+. Ferramentas como asdf resolvem `java` por
+# .tool-versions do diretório atual, o que pode apontar pra um Java mais
+# antigo (ex: projetos legado em Java 8) mesmo quando este script roda de
+# outro lugar. Busca um binário Java 21+ independente do cwd.
+find_java21() {
+    local candidate major
+
+    if [ -n "${JAVA_HOME:-}" ] && [ -x "${JAVA_HOME}/bin/java" ]; then
+        candidate="${JAVA_HOME}/bin/java"
+        major="$("${candidate}" -version 2>&1 | grep -oE '"[0-9]+' | head -1 | tr -d '"')"
+        if [ -n "${major}" ] && [ "${major}" -ge 21 ]; then
+            echo "${candidate}"
+            return 0
+        fi
+    fi
+
+    if command -v asdf >/dev/null 2>&1; then
+        candidate="$(ASDF_JAVA_VERSION=$(asdf list java 2>/dev/null | grep -oE '[0-9]+\.[0-9.]+\+?[0-9]*' | awk -F. '$1>=21' | sort -V | tail -1) asdf where java 2>/dev/null)"
+        if [ -n "${candidate}" ] && [ -x "${candidate}/bin/java" ]; then
+            echo "${candidate}/bin/java"
+            return 0
+        fi
+    fi
+
+    for candidate in /usr/lib/jvm/java-21-* /usr/lib/jvm/java-2[1-9]-* /usr/lib/jvm/java-[3-9][0-9]-*; do
+        if [ -x "${candidate}/bin/java" ]; then
+            echo "${candidate}/bin/java"
+            return 0
+        fi
+    done
+
+    major="$(java -version 2>&1 | grep -oE '"[0-9]+' | head -1 | tr -d '"')"
+    if [ -n "${major}" ] && [ "${major}" -ge 21 ]; then
+        echo "java"
+        return 0
+    fi
+
+    return 1
+}
+
+JAVA_BIN="$(find_java21)"
+if [ -z "${JAVA_BIN}" ]; then
+    echo "Erro: nenhum Java 21+ encontrado (JAVA_HOME, asdf ou /usr/lib/jvm). java-ai-quality-gate requer Java 21+." >&2
+    exit 1
+fi
+
+exec "${JAVA_BIN}" -jar "${JAR_PATH}" "$@"

@@ -1,6 +1,7 @@
 .PHONY: build test clean install run help
 
-JAR := target/java-ai-quality-gate-0.1.0-SNAPSHOT.jar
+VERSION := $(shell mvn -q -DforceStdout help:evaluate -Dexpression=project.version)
+JAR := target/java-ai-quality-gate-$(VERSION).jar
 INSTALL_DIR := $(HOME)/.local/bin
 INSTALL_JAR := $(INSTALL_DIR)/java-ai-quality-gate.jar
 
