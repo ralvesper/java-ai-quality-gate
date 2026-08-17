@@ -1,0 +1,3 @@
+#!/bin/sh
+echo "Fixture Maven Wrapper"
+exit 0
