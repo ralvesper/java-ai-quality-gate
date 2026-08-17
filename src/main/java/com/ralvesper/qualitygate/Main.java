@@ -11,7 +11,8 @@ import picocli.CommandLine.Command;
         subcommands = {
                 ReviewCommand.class,
                 ArchitectureCommand.class,
-                GitCommand.class
+                GitCommand.class,
+                WorkItemCommand.class
         }
 )
 public class Main implements Runnable {
