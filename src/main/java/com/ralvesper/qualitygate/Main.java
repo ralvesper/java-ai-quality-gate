@@ -13,7 +13,8 @@ import picocli.CommandLine.Command;
                 ArchitectureCommand.class,
                 GitCommand.class,
                 WorkItemCommand.class,
-                ContextCommand.class
+                ContextCommand.class,
+                AiReviewCommand.class
         }
 )
 public class Main implements Runnable {
