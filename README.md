@@ -69,13 +69,15 @@ Spring Boot não é necessário neste primeiro momento: o projeto é uma CLI.
 ## Instalação
 
 ```bash
-# Clonar e instalar o JAR em ~/.local/bin (padrão Unix)
+# Clonar e instalar (copia JAR + cria wrapper executável em ~/.local/bin)
 git clone https://github.com/ralvesper/java-ai-quality-gate.git
 cd java-ai-quality-gate
 make install
 ```
 
-Isso copia o fat JAR para `~/.local/bin/java-ai-quality-gate.jar` (sem versão no nome).
+Isso copia:
+- Fat JAR: `~/.local/bin/java-ai-quality-gate.jar`
+- Wrapper: `~/.local/bin/java-ai-quality-gate` (executável)
 
 Adicione ao PATH se ainda não estiver:
 
@@ -96,16 +98,16 @@ make run PROJECT=/caminho/do/projeto
 make run-installed PROJECT=/caminho/do/projeto
 ```
 
+### Via wrapper instalado (qualquer diretório, **recomendado**)
+
+```bash
+java-ai-quality-gate review --project /caminho/do/projeto
+```
+
 ### Via JAR instalado (qualquer diretório)
 
 ```bash
 java -jar ~/.local/bin/java-ai-quality-gate.jar review --project /caminho/do/projeto
-```
-
-### Se ~/.local/bin estiver no PATH
-
-```bash
-java -jar java-ai-quality-gate.jar review --project /caminho/do/projeto
 ```
 
 Saída esperada:
@@ -139,7 +141,7 @@ make help           # Mostra ajuda
 make build          # Compila e empacota fat JAR (skip tests)
 make test           # Roda testes unitários
 make clean          # Limpa target/
-make install        # Instala JAR em /home/rodrigo/dev/tools/java-ai-quality-gate
+make install        # Instala JAR + wrapper em ~/.local/bin
 make run PROJECT=.. # Build + executa quality gate
 make run-installed  # Executa quality gate usando JAR instalado
 ```

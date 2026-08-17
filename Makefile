@@ -16,7 +16,10 @@ clean:
 install: build
 	mkdir -p $(INSTALL_DIR)
 	cp $(JAR) $(INSTALL_JAR)
-	@echo "Installed to $(INSTALL_JAR)"
+	cp shell/java-ai-quality-gate $(INSTALL_DIR)/java-ai-quality-gate
+	chmod +x $(INSTALL_DIR)/java-ai-quality-gate
+	@echo "Installed JAR to $(INSTALL_JAR)"
+	@echo "Installed wrapper script to $(INSTALL_DIR)/java-ai-quality-gate"
 	@echo "Add to PATH: export PATH=\"\$$PATH:$(INSTALL_DIR)\""
 
 run: build

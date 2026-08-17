@@ -74,4 +74,65 @@ class ReviewCommandTest {
             System.setErr(originalErr);
         }
     }
+
+    @Test
+    void testReviewCommandJsonPass() throws Exception {
+        Path projectDir = tempDir.resolve("json-project");
+        projectDir.toFile().mkdirs();
+        
+        String pomContent = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <project xmlns="http://maven.apache.org/POM/4.0.0">
+                <modelVersion>4.0.0</modelVersion>
+                <groupId>com.test</groupId>
+                <artifactId>json-project</artifactId>
+                <version>1.0.0</version>
+            </project>
+            """;
+        java.nio.file.Files.writeString(projectDir.resolve("pom.xml"), pomContent);
+
+        // Mock Maven Wrapper
+        boolean isWindows = System.getProperty("os.name").toLowerCase().contains("win");
+        if (isWindows) {
+            Path mvnwCmd = projectDir.resolve("mvnw.cmd");
+            java.nio.file.Files.writeString(mvnwCmd, "@echo off\necho Mock Wrapper\nexit /b 0");
+        } else {
+            Path mvnw = projectDir.resolve("mvnw");
+            java.nio.file.Files.writeString(mvnw, "#!/bin/sh\necho \"Mock Wrapper\"\nexit 0");
+            mvnw.toFile().setExecutable(true, false);
+        }
+
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        PrintStream originalOut = System.out;
+        System.setOut(new PrintStream(output));
+
+        try {
+            ReviewCommand cmd = new ReviewCommand();
+            
+            java.lang.reflect.Field projectField = ReviewCommand.class.getDeclaredField("project");
+            projectField.setAccessible(true);
+            projectField.set(cmd, projectDir);
+
+            java.lang.reflect.Field formatField = ReviewCommand.class.getDeclaredField("format");
+            formatField.setAccessible(true);
+            formatField.set(cmd, ReviewCommand.OutputFormat.json);
+
+            int exitCode = cmd.call();
+
+            assertEquals(0, exitCode);
+            String out = output.toString().trim();
+            
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            com.fasterxml.jackson.databind.JsonNode rootNode = mapper.readTree(out);
+            
+            assertEquals("PASS", rootNode.get("status").asText());
+            assertTrue(rootNode.get("project").asText().contains("json-project"));
+            assertTrue(rootNode.has("checks"));
+            assertEquals(1, rootNode.get("checks").size());
+            assertEquals("maven-verify", rootNode.get("checks").get(0).get("gate").asText());
+            assertEquals("PASS", rootNode.get("checks").get(0).get("status").asText());
+        } finally {
+            System.setOut(originalOut);
+        }
+    }
 }

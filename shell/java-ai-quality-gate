@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+
+# Java AI Quality Gate wrapper script
+# Este script executa o JAR do java-ai-quality-gate.
+
+# Encontra o diretório onde este script está localizado
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+JAR_PATH="${SCRIPT_DIR}/java-ai-quality-gate.jar"
+
+# Fallback: se o JAR não estiver na mesma pasta que o script (ex: executado do /bin),
+# tenta buscar na pasta de instalação padrão em ~/.local/bin
+if [ ! -f "${JAR_PATH}" ]; then
+    JAR_PATH="${HOME}/.local/bin/java-ai-quality-gate.jar"
+fi
+
+if [ ! -f "${JAR_PATH}" ]; then
+    echo "Erro: java-ai-quality-gate.jar não encontrado em ${JAR_PATH}" >&2
+    exit 1
+fi
+
+exec java -jar "${JAR_PATH}" "$@"
