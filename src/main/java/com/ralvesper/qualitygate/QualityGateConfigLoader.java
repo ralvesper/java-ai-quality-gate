@@ -12,7 +12,10 @@ public class QualityGateConfigLoader {
     private final ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
 
     public QualityGateConfig load(Path projectPath) throws IOException {
-        Path configPath = projectPath.resolve(".quality-gate.yml");
+        Path agentsConfig = projectPath.resolve(".agents/.quality-gate.yml");
+        Path rootConfig = projectPath.resolve(".quality-gate.yml");
+
+        Path configPath = Files.isRegularFile(agentsConfig) ? agentsConfig : rootConfig;
         if (!Files.isRegularFile(configPath)) {
             return QualityGateConfig.defaults();
         }
