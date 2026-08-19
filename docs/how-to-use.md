@@ -455,7 +455,75 @@ O `--commit` diffa o commit informado contra o pai (`git diff <commit>~1..<commi
 
 ---
 
-## Cenário 12: "Integrar com CI/CD"
+## Cenário 12: "Salvar review no GitHub como comentário em issue"
+
+O review pode ser salvo automaticamente como comentário na issue correspondente do GitHub (`ralvesper/pluxee-issues`).
+
+### Configuração
+
+No `.quality-gate.yml`:
+
+```yaml
+aiReview:
+  enabled: true
+  provider: command
+  command:
+    - /home/rodrigo/.local/bin/ai-reviewer
+  githubComment:
+    enabled: false
+    repository: ralvesper/pluxee-issues
+```
+
+### Uso
+
+```bash
+# Review + comentário no GitHub
+java-ai-quality-gate ai-review --commit bce5615d --github-comment
+
+# Com work item explícito
+java-ai-quality-gate ai-review --commit bce5615d --work-item FS-708 --github-comment
+
+# Com arquivo local + GitHub
+java-ai-quality-gate ai-review --commit bce5615d -o review.json --github-comment
+```
+
+### Como funciona
+
+1. Roda o review normalmente
+2. Detecta o work item ID da branch (ex: `FS-708` de `fix/FS-708-correcao`)
+3. Busca issue com `[FS-708]` no título em `ralvesper/pluxee-issues`
+4. Se encontrar → comenta na issue existente
+5. Se não encontrar → cria issue nova com `[{workItemId}]` no título
+6. Imprime a URL da issue no terminal
+
+### Formato do comentário
+
+```markdown
+## AI Review — PASS
+
+**Provider:** claude | **Commit:** `bce5615d` | **Date:** 2026-08-19
+
+### Summary
+Implementação correta. Handler trata timeout do order-service...
+
+### Findings
+
+| Severity | Confidence | Category | File | Message |
+|----------|------------|----------|------|---------|
+| HIGH | HIGH | ARCHITECTURE | Controller.java:43 | Controller acessa repository diretamente |
+
+---
+Policy: CRITICAL/HIGH + HIGH confidence = BLOCK
+```
+
+### Pré-requisitos
+
+- `gh` CLI autenticado: `gh auth status`
+- Work item configurado (ver Cenário 5)
+
+---
+
+## Cenário 13: "Integrar com CI/CD"
 
 ### GitHub Actions
 
@@ -495,6 +563,7 @@ quality-gate:
 | `java-ai-quality-gate ai-review` | "Quero que a IA revise meu código" |
 | `java-ai-quality-gate ai-review --commit abc123` | "Revisar um commit específico com IA" |
 | `java-ai-quality-gate ai-review -o review.json` | "Quero salvar a revisão da IA em arquivo" |
+| `java-ai-quality-gate ai-review --github-comment` | "Salvar review como comentário na issue do GitHub" |
 | `java-ai-quality-gate work-item` | "Quero ver o work item da branch atual" |
 | `java-ai-quality-gate architecture detect` | "Quero saber que arquitetura esse projeto tem" |
 | `java-ai-quality-gate architecture init` | "Projeto novo, quero gerar o ARCHITECTURE.md" |
@@ -510,6 +579,7 @@ quality-gate:
 | `--base <ref>` | git, context, ai-review | Branch/base para o diff |
 | `--commit <ref>` | git, context, ai-review | Commit específico (diff contra pai) |
 | `--work-item <ID>` | context, ai-review | Work item explícito |
+| `--github-comment` | ai-review | Posta resultado como comentário na issue do GitHub |
 
 ## Precedência de configuração
 

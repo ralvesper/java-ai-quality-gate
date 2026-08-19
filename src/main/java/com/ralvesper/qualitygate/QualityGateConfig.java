@@ -60,15 +60,23 @@ public record QualityGateConfig(
     public record AiReviewConfig(
             boolean enabled,
             String provider,
-            List<String> command
+            List<String> command,
+            GithubCommentConfig githubComment
     ) {
         public AiReviewConfig {
             provider = provider == null || provider.isBlank() ? "command" : provider;
             command = command == null ? List.of() : List.copyOf(command);
+            githubComment = githubComment == null ? GithubCommentConfig.defaults() : githubComment;
         }
 
         public static AiReviewConfig defaults() {
-            return new AiReviewConfig(false, "command", List.of());
+            return new AiReviewConfig(false, "command", List.of(), GithubCommentConfig.defaults());
+        }
+    }
+
+    public record GithubCommentConfig(boolean enabled, String repository) {
+        public static GithubCommentConfig defaults() {
+            return new GithubCommentConfig(false, null);
         }
     }
 

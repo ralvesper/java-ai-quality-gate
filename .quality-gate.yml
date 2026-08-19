@@ -2,3 +2,12 @@ maven:
   timeoutSeconds: 600
   args:
     - -B
+
+aiReview:
+  enabled: false
+  provider: command
+  command:
+    - /home/rodrigo/.local/bin/ai-reviewer
+  githubComment:
+    enabled: false
+    repository: ralvesper/pluxee-issues

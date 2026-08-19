@@ -34,6 +34,9 @@ public class AiReviewCommand implements Callable<Integer> {
     @Option(names = {"-o", "--output"}, description = "Salva o resultado em arquivo. Com -f json, salva JSON; sem -f, salva texto.")
     private Path outputFile;
 
+    @Option(names = "--github-comment", description = "Posta o resultado como comentário na issue do GitHub.")
+    private boolean githubComment;
+
     enum OutputFormat { text, json }
 
     @Override
@@ -78,6 +81,11 @@ public class AiReviewCommand implements Callable<Integer> {
                 out.close();
                 System.out.println("Salvo em: " + outputFile.toAbsolutePath());
             }
+
+            if (githubComment) {
+                postGitHubComment(root, config, result, decision, commitRef);
+            }
+
             return decision.block() ? 1 : 0;
         } catch (Exception e) {
             System.err.println("Erro no AI review: " + e.getMessage());
@@ -104,5 +112,34 @@ public class AiReviewCommand implements Callable<Integer> {
     }
 
     public record AiReviewReport(String status, boolean block, AiReviewResult review) {
+    }
+
+    private void postGitHubComment(Path root, QualityGateConfig config,
+                                   AiReviewResult result, AiReviewPolicy.Decision decision,
+                                   String commitRef) throws Exception {
+        String resolvedWorkItemId = this.workItemId;
+        if (resolvedWorkItemId == null || resolvedWorkItemId.isBlank()) {
+            QualityGateConfig.WorkItemConfig wiConfig = config.workItem();
+            if (wiConfig.enabled()) {
+                resolvedWorkItemId = new WorkItemIdResolver()
+                        .resolve(root, wiConfig.detection().branchPatterns())
+                        .orElse(null);
+            }
+        }
+
+        if (resolvedWorkItemId == null || resolvedWorkItemId.isBlank()) {
+            System.err.println("github-comment: Work item não detectado. Use --work-item ou configure branchPatterns.");
+            return;
+        }
+
+        String repo = config.aiReview().githubComment().repository();
+        if (repo == null || repo.isBlank()) {
+            System.err.println("github-comment: repository não configurado em aiReview.githubComment.repository");
+            return;
+        }
+
+        String comment = new ReviewCommentFormatter().format(result, decision, commitRef);
+        String url = new GitHubCommentService(repo).postComment(resolvedWorkItemId, comment);
+        System.out.println("Comentário postado em: " + url);
     }
 }
