@@ -7,10 +7,14 @@ import java.util.Optional;
 public class ReviewContextBuilder {
 
     public ReviewContext build(Path project, String baseRef, String workItemId) throws Exception {
+        return build(project, baseRef, workItemId, null);
+    }
+
+    public ReviewContext build(Path project, String baseRef, String workItemId, String commitRef) throws Exception {
         Path root = project.toAbsolutePath().normalize();
         QualityGateConfig config = new QualityGateConfigLoader().load(root);
 
-        GitDiffContext git = new GitContextAnalyzer().analyze(root, baseRef);
+        GitDiffContext git = new GitContextAnalyzer().analyze(root, baseRef, commitRef);
         ArchitectureContext architecture = new ArchitectureDetector().detect(root);
         String architectureDocument = readArchitectureDocument(architecture);
         WorkItem workItem = resolveWorkItem(root, config.workItem(), workItemId).orElse(null);

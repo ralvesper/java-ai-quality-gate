@@ -3,6 +3,8 @@ package com.ralvesper.qualitygate;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
+import java.io.PrintStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -49,6 +51,12 @@ public class ReviewCommand implements Callable<Integer> {
     )
     private OutputFormat format;
 
+    @Option(
+            names = {"-o", "--output"},
+            description = "Salva o resultado em arquivo."
+    )
+    private Path outputFile;
+
     public enum OutputFormat {
         text, json
     }
@@ -92,7 +100,18 @@ public class ReviewCommand implements Callable<Integer> {
     private int writeReport(QualityGateReport report) {
         ReportWriter writer = format == OutputFormat.json ? new JsonReportWriter() : new TextReportWriter();
         try {
-            writer.write(report, System.out);
+            if (outputFile != null) {
+                Path parent = outputFile.getParent();
+                if (parent != null) {
+                    Files.createDirectories(parent);
+                }
+                try (PrintStream out = new PrintStream(Files.newOutputStream(outputFile))) {
+                    writer.write(report, out);
+                }
+                System.out.println("Salvo em: " + outputFile.toAbsolutePath());
+            } else {
+                writer.write(report, System.out);
+            }
         } catch (Exception e) {
             System.err.println("Erro ao gerar relatório: " + e.getMessage());
             return 1;

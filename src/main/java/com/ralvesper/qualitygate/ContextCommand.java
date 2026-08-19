@@ -20,6 +20,9 @@ public class ContextCommand implements Callable<Integer> {
     @Option(names = "--base", description = "Branch/ref base para o Git diff.")
     private String base;
 
+    @Option(names = "--commit", description = "Hash/tag/ref de um commit específico. Diffa o commit contra o pai.")
+    private String commitRef;
+
     @Option(names = "--work-item", description = "ID explícito do work item. Se omitido, tenta detectar pela branch.")
     private String workItemId;
 
@@ -31,7 +34,7 @@ public class ContextCommand implements Callable<Integer> {
     @Override
     public Integer call() {
         try {
-            ReviewContext context = new ReviewContextBuilder().build(project, base, workItemId);
+            ReviewContext context = new ReviewContextBuilder().build(project, base, workItemId, commitRef);
             if (format == OutputFormat.json) {
                 System.out.println(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(context));
             } else {

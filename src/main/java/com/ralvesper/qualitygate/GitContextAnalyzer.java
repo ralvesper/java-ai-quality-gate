@@ -16,12 +16,29 @@ public class GitContextAnalyzer {
     private static final Pattern HUNK = Pattern.compile("@@ -(\\d+)(?:,(\\d+))? \\+(\\d+)(?:,(\\d+))? @@.*");
 
     public GitDiffContext analyze(Path project, String requestedBase) throws IOException, InterruptedException {
+        return analyze(project, requestedBase, null);
+    }
+
+    public GitDiffContext analyze(Path project, String requestedBase, String commitRef) throws IOException, InterruptedException {
         Path root = project.toAbsolutePath().normalize();
         requireGitRepository(root);
 
         String branch = run(root, "git", "branch", "--show-current").trim();
         if (branch.isBlank()) {
             branch = "DETACHED_HEAD";
+        }
+
+        if (commitRef != null && !commitRef.isBlank()) {
+            String commitHash = run(root, "git", "rev-parse", "--verify", "--quiet", commitRef).trim();
+            String parent = run(root, "git", "rev-parse", "--verify", "--quiet", commitHash + "^").trim();
+            String trackedPatch = run(root, "git", "diff", "--no-ext-diff", "--unified=0", parent, commitHash);
+            String nameStatus = run(root, "git", "diff", "--no-ext-diff", "--name-status", parent, commitHash);
+
+            Map<String, MutableFile> files = parseNameStatus(nameStatus);
+            parseChangedLines(trackedPatch, files);
+            List<GitDiffFile> result = files.values().stream().map(MutableFile::toRecord).toList();
+
+            return new GitDiffContext(branch, commitRef, parent, result, trackedPatch);
         }
 
         String base = requestedBase == null || requestedBase.isBlank()

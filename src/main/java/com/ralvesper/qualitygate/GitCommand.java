@@ -21,6 +21,9 @@ public class GitCommand implements Callable<Integer> {
     @Option(names = "--base", description = "Branch/ref base. Se omitida, tenta origin/HEAD, origin/main, origin/master, main ou master.")
     private String base;
 
+    @Option(names = "--commit", description = "Hash/tag/ref de um commit específico. Diffa o commit contra o pai.")
+    private String commitRef;
+
     @Option(names = {"-f", "--format"}, defaultValue = "text", description = "Formato de saída: text ou json.")
     private OutputFormat format;
 
@@ -29,7 +32,7 @@ public class GitCommand implements Callable<Integer> {
     @Override
     public Integer call() {
         try {
-            GitDiffContext context = new GitContextAnalyzer().analyze(project, base);
+            GitDiffContext context = new GitContextAnalyzer().analyze(project, base, commitRef);
             if (format == OutputFormat.json) {
                 ObjectMapper mapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
                 System.out.println(mapper.writeValueAsString(context));
